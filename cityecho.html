@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Echo | 城市回声</title>
+    <style>
+        /* --- 基础设定 --- */
+        :root {
+            --bg-color: #0f0f0f;
+            --text-main: #d0d0d0;
+            --text-dim: #888;          
+            --accent: #4a4a4a;
+            --font-mono: 'Courier New', Courier, monospace;
+            --font-serif: 'Songti SC', 'SimSun', 'Georgia', serif;
+        }
+        body { background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; font-family: var(--font-serif); line-height: 1.6; overflow-x: hidden; }
+        
+        /* --- 标题 --- */
+        header { text-align: center; padding: 80px 0 40px; font-family: var(--font-mono); border-bottom: 1px dashed var(--accent); margin-bottom: 40px; }
+        h1 { font-weight: normal; letter-spacing: 2px; font-size: 1.5rem; min-height: 1.5em; }
+        .subtitle { color: var(--text-dim); font-size: 0.9rem; margin-top: 10px; }
+
+        /* --- 列表 --- */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 40px; max-width: 1200px; margin: 0 auto; }
+        .card { border: 1px solid var(--accent); padding: 15px; transition: all 0.4s ease; cursor: pointer; background: #141414; }
+        .card:hover { border-color: #888; transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .img-box { width: 100%; height: 200px; background-color: #222; overflow: hidden; filter: grayscale(100%) contrast(1.2); transition: filter 0.5s ease; }
+        .card:hover .img-box { filter: grayscale(0%) contrast(1); }
+        .img-box img { width: 100%; height: 100%; object-fit: cover; }
+        .meta { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-dim); margin-top: 15px; display: flex; justify-content: space-between; }
+        .card-title { font-size: 1.1rem; margin-top: 10px; font-weight: bold; }
+        .excerpt { font-size: 0.9rem; color: #888; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        /* --- 详情弹窗 --- */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; overflow-y: auto; animation: fadeIn 0.3s; }
+        .close-btn { position: absolute; top: 20px; right: 30px; font-size: 2rem; color: #fff; cursor: pointer; font-family: var(--font-mono); }
+        .modal-content { max-width: 800px; margin: 60px auto; padding: 20px; animation: slideUp 0.5s; }
+        
+        .detail-img { width: 100%; max-height: 500px; object-fit: contain; border: 1px solid #333; margin-bottom: 20px; background: #000; transition: opacity 0.3s; }
+        .thumb-bar { display: flex; gap: 10px; margin-bottom: 40px; overflow-x: auto; padding-bottom: 10px; }
+        .thumb { width: 80px; height: 60px; object-fit: cover; cursor: pointer; opacity: 0.5; border: 1px solid transparent; transition: all 0.2s; }
+        .thumb:hover { opacity: 1; }
+        .thumb.active { opacity: 1; border-color: #fff; transform: scale(1.05); }
+
+        .story-text { font-size: 1.1rem; line-height: 1.8; margin-bottom: 50px; padding-left: 20px; border-left: 2px solid #333; }
+        
+        .echo-text { 
+            font-family: var(--font-mono); 
+            font-size: 0.95rem;        
+            color: #b0b0b0;            
+            padding: 25px; 
+            border: 1px dashed #555;   
+            background: #111;
+            line-height: 1.6;
+        }
+
+        /* --- 管理员面板 --- */
+        .fab { position: fixed; bottom: 30px; right: 30px; width: 50px; height: 50px; background: #333; color: #fff; border-radius: 50%; text-align: center; line-height: 50px; font-size: 24px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); z-index: 90; transition: transform 0.3s; }
+        .fab:hover { transform: scale(1.1); background: #555; }
+        .admin-panel { display: none; background: #1a1a1a; border: 1px solid #444; padding: 20px; position: fixed; bottom: 90px; right: 30px; width: 300px; z-index: 91; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        .admin-input { width: 100%; background: #000; border: 1px solid #333; color: #ddd; padding: 8px; margin-bottom: 10px; font-family: var(--font-mono); font-size: 0.8rem; box-sizing: border-box;}
+        textarea.admin-input { height: 80px; font-family: var(--font-serif); }
+        .btn { background: #333; color: #fff; border: 1px solid #555; padding: 5px 15px; cursor: pointer; width: 100%; font-family: var(--font-mono); }
+        .btn:hover { background: #555; }
+        .success-msg { color: #4caf50; font-size: 0.8rem; text-align: center; display: none; margin-top: 5px; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 id="typewriter"></h1>
+        <div class="subtitle">PROJECT: CITY ECHO / ARCHIVE</div>
+    </header>
+
+    <div class="grid" id="gallery"></div>
+
+    <div class="modal" id="detailView">
+        <span class="close-btn" onclick="closeModal()">×</span>
+        <div class="modal-content">
+            <img src="" class="detail-img" id="m-img">
+            <div class="thumb-bar" id="m-thumbs"></div>
+            <div class="meta" style="margin-bottom:20px;"><span id="m-id"></span><span id="m-date"></span></div>
+            <h2 id="m-title" style="margin-bottom:30px;"></h2>
+            <div class="story-text" id="m-story"></div>
+            <div class="echo-text"><span style="display:block; margin-bottom:10px; color:#666;">> [ 回声 ]</span><span id="m-echo"></span></div>
+        </div>
+    </div>
+
+    <div class="fab" onclick="toggleAdmin()">+</div>
+    <div class="admin-panel" id="adminPanel">
+        <h3 style="margin-top:0; font-size:1rem; font-family:var(--font-mono);">添加新藏品</h3>
+        <input type="text" id="in-id" class="admin-input" placeholder="编号 (例: SPECIMEN_005)">
+        <input type="text" id="in-title" class="admin-input" placeholder="标题">
+        <input type="text" id="in-date" class="admin-input" placeholder="日期">
+        <input type="text" id="in-loc" class="admin-input" placeholder="地点">
+        <input type="text" id="in-imgs" class="admin-input" placeholder="图片文件名 (会自动添加 images/ 前缀)">
+        <textarea id="in-story" class="admin-input" placeholder="故事 (自动换行)"></textarea>
+        <textarea id="in-echo" class="admin-input" placeholder="回响感悟"></textarea>
+        <button class="btn" onclick="generateCode()">生成代码并复制</button>
+        <div class="success-msg" id="msg">✅ 已复制！去代码最后粘贴</div>
+    </div>
+
+    <script>
+        // --- 藏品数据区 ---
+        // 注意：本地图片的路径现在统一指向 images/ 文件夹
+        const specimens = [
+            {
+                id: "SPECIMEN_004",
+                title: "废弃候车亭",
+                date: "2025.12.09",
+                location: "未知 · 荒野路边",
+                imgs: [
+                    "https://placehold.co/800x500/1a1a1a/FFF?text=Bus+Stop+View",
+                    "https://placehold.co/800x500/1a1a1a/FFF?text=Old+Sign",
+                    "https://placehold.co/800x500/1a1a1a/FFF?text=Empty+Seat"
+                ],
+                story: "可以想象曾经一群最好的朋友形影不离，某天就在候车亭下，公交牌下，搭上不同的车子，欢声笑语中相约明天再一起玩，却不知道从此人生再无交集，这就是彼此最后的分别<br><br>是否又有一对男女生放学每天送女生到这，他们互相告别，女生走上公交车，最后回头望了一眼男生，感情好像尽在无言中，话在嘴边却说不出口。此时女生多想下车，紧紧抱住男生，却知道不可能。而男生目送女生的公交远去，心里空空荡荡，只是呆呆的站在原地，望着驶离的公交车，夕阳洒在脸上，一句我喜欢你，再见。轻轻的说出口，没有任何人听到。<br><br>还有经常坐公交去市中心的最后一批老人们，随着他们的去世，这个候车亭和这个小地方就被永远遗忘，成为只有地图上标注的一处地点。",
+                echo: "我此时坐在候车亭里，等着一班永远不会来的公交车，不知去哪。"
+            },
+            {
+                id: "SPECIMEN_002",
+                title: "深夜酒吧",
+                date: "2025.12.08",
+                location: "城市 · 后巷",
+                imgs: ["https://placehold.co/800x500/1a1a1a/FFF?text=Closed+Bar"],
+                story: "一个关掉的酒吧，可以想象曾经的热闹，下班的人们来到这里喝上一杯，作为家和公司的中转站？或许和两个朋友一起，或许某个人自己独自待在角落？但是随着经济衰落，这个小小的酒吧也终于支撑不下去了，亦或者本来勉强可以，但是店主出了什么事故去世了？就那个一直可以和顾客们打成一片的有趣的店主,随着店铺关门，老顾客们也因为失去酒吧这条唯一的纽带各自回到自己的生活了再无交集，或许只有在哪天喝到和这间酒吧调出来的味道差不多的酒才会想起这个小小的店面。",
+                echo: "上海这样的小酒吧如此之多，常常会怀疑它们真的有生意吗，永远是开一家关一家"
+            },
+            {
+                id: "SPECIMEN_003",
+                title: "坏掉的长椅",
+                date: "2025.12.10",
+                location: "学校 · 荒原草坪",
+                imgs: ["images/003001.jpg","images/003002.jpg","images/003003.jpg"],
+                story: "走在学校的草坪上，因为是上午，又没有阳光，偌大的草地只有我一个人，和一张破败的长椅，只有他倒在正中间，其他几把椅子都完好无损，是否可以想象曾经也有一个像我一样无聊地只是漫无目的在学校闲逛的同学，坐在这把长椅上，心里只是羡慕着小飞虫蝴蝶的无忧无虑？是否又会有带着一把吉他来到这的同学，把心里的苦闷全部化作音符，弹给旁边的灯塔和远方的发电机？还可以想象一对对情侣，在温暖的午后，晒着太阳，互相诉说着生活中的小事，拥抱打闹，仿佛时间永远被定格，如此美好。这些同学现在都过得怎么样？那些烦恼有没有被这里舒爽的风带走呢？那些甜蜜的恋爱中的海誓山盟是否终归像这把长椅一样走向破碎？",
+                echo: "没人知道。只有远方的发电机自顾自的转着不知疲倦"
+            },
+            {
+                id: "010",
+                title: "教堂",
+                date: "2026.4.4&4.5",
+                location: "马桥,佘山",
+                imgs: ["images/010001.jpg", "images/010002.jpg", "images/010003.jpg", "images/010004.jpg", "images/010005.jpg", "images/010006.jpg"],
+                story: "都说清明时节雨纷纷,这两天天气非常之好,没有明确的目标,只是想向着郊区,随意的骑车,前者开始想往闵行南边一路到黄浦江岸边的,但是沿河都在施工,到不了岸边,路过马桥教堂就停下看看,藏在一条小巷子里,不知到底有没有人会来这礼拜?经书都已经三十年历史了,香港教会所赠送,不知道经过多少人虔诚的手?现在静静地躺在这,一年到头未必有人翻开.<br><br>第二座教堂坐落于田间,可惜正在装修,想必到了成熟的时候旁边一片金黄,应该会很漂亮,然而十字架依然高高耸立",
+                echo: "两天似乎都没达到目标,一没到江边二教堂在修缮,但是都骑得非常尽兴,朝着未知的村庄和道路进发,有探险前的激动以及路上的惬意就够了"
+            },
+            {
+                id: "009",
+                title: "老图书馆",
+                date: "2026.3.10",
+                location: "学校",
+                imgs: ["images/009001.jpg", "images/009002.jpg", "images/009003.jpg"],
+                story: "据说是全上海大学排的上号的学校图书馆，地下藏着老馆的记忆，走进门昏暗的灯光，旧书味扑面而来，只需要单看一眼书柜就知道上面的书不少比我父母年纪都大，都是从老校区搬过来的，图章也是学校改名之前的，不知多少年岁没有人翻看过他们了？<br><br><br><br>随便翻了几本，找到的最早的书来自60年代初，相信角落里还有更早的，有的印着老毛的圣经语录，非常好玩感慨，最惊喜的是犄角旮旯里的一本里夹着柯南的书签，也是和我一样的闲人啊，逛到这无人问津的老图书馆",
+                echo: "书最后的老式借阅表上的或潦草或工整的签名，诉说着他们曾经的经历，又有谁知道我的这些几十年前的学长过的怎么样呢，几十年后，我也拿着这本书站在这"
+            },
+            {
+                id: "008",
+                title: "午后",
+                date: "2026.3.10",
+                location: "饭后回校",
+                imgs: ["images/008001.jpg", "images/008002.jpg"],
+                story: "放寒假前车里经过的，当时以为是什么废弃的设施，还打算在开学专门来收集素材的，虽然转念一想这一块都很新大不可能这种适合我探险的地方，今天下午路过，转头一看原来是座小学，当时只是放假了而已，门口看了一眼一周菜单，感觉比我的小学年代吃的要丰盛不少，听着里面小朋友们打闹开心的笑声，真是感慨，小学的时光似乎没过去多久，真是最快乐的一段时间<br><br>",
+                echo: "我从小就知道要珍惜时光啊，但是无论怎么珍惜时间不会停下来不是吗，这个学校的同学们在享受人生中最快乐的时光，我难道不也是吗，作为大学生也拥有着无忧无虑，拿着咖啡走在回学校的路上，没有任何烦恼，相比同学，我的压力已经是非常小的了，几年后，我当然也会怀念自由自在的大学生涯"
+            },
+            {
+                id: "007",
+                title: "食堂",
+                date: "2025.12.31",
+                location: "学校食堂",
+                imgs: ["images/007001.jpg"],
+                story: "元旦前夕，学校里能回家的基本都回家了，今天下午有个考试所以我打算晚饭后才回家的，外面寒风凛冽，食堂空空荡荡，但是在外面就能听到活泼的钢琴声，平日里都没有这位同学弹琴的，也肯定是受学校雇佣才来，却在今天这个无人的食堂开始吗?弹奏给谁呢？食堂完全没有往日的人头攒动，只有音乐回荡在空旷的环境中，显得尤其伤感孤独。<br><br>这位同学心里在想什么呢？他在当年学钢琴的时候有没有梦想过在大舞台上表演呢，但是现在只能为了点外快在元旦也不能回家，在食堂的角落弹琴，或许有点落寞。亦或者他只是单纯的享受音乐？无论自己的听众是大音乐厅里的所谓上流人士还是学校食堂里根本不在乎他的饥肠辘辘的同学们，也许只要在弹琴，就是一种快乐。当然，最现实的可能是他根本没有想那么多，当年学钢琴也只是父母逼着学的，只为一张考级的证书，现在也只是把它转化成生活费罢了。<br><br>",
+                echo: "我站着听了一会，想到又是没什么值得期待的一年马上要来，看着朋友圈的各位都发着自己的年终快乐瞬间，自己身边却是空无一人。"
+            },
+            {
+                id: "006",
+                title: "无题",
+                date: "2025.12",
+                location: "乌鲁木齐中路",
+                imgs: ["images/006001.jpg", "images/006003.jpg", "images/006002.jpg"],
+                story: "买了辆新自行车，最近每天都要看地图想着骑去哪，让ai帮我规划了一条线路，看到穿过乌鲁木齐北路，就想着干脆去乌鲁木齐中路，那个曾经的是非之地打个卡，来到路口，街角停着一辆公安的巴士，我举起手机拍路牌的时候都慌了三分，想到当年的一群勇士，不知道最后被怎么清算了，我固然是没有这个胆量的，所以佩服他们，虽然我们即使抱团，力量也太渺小了，起不到什么真的作用，但是仍然可以回忆那荒诞疯狂的一年，好像早已远在天边，又好像没过去多久。<br><br>附近的愚园路非常热闹，圣诞节的活动吸引不少人打卡拍照，歌舞升平，不禁联想到当年冷清死寂的街道，不知道是哪位身先士卒走上街头的？<br><br>",
+                echo: "没人忘记那几年，也没人会公开讨论那几年，当时高中，我的语文课本上有关于歌颂抗疫精神的文章，现在还能在吗？"
+            },
+            {
+                id: "005",
+                title: "罚单",
+                date: "2025.12.26",
+                location: "长宁路古北路附近",
+                imgs: ["images/005001.jpg", "images/005002.jpg"],
+                story: "骑车25公里，前半段在光复西路那边畅通无阻，狂飙猛进，后半段在南京路那一块被各种人车混杂折磨的难受，结果在快到家的一个丁字路口，因为前面骑的烦躁，懒得等了闯了个红灯，被不知道哪里冒出来的交警喊停，痛失五十大洋，不过这是我第一次被罚说实话还有点兴奋。",
+                echo: "不是很有意思吗，在没人的路上一路飞驰，在人多的路上闪转腾挪，结果在一个没什么人的路口翻车了"
+            },
+            {
+                id: "001",
+                title: "起点",
+                date: "2025.12.12",
+                location: "茅台路古北路",
+                imgs: ["images/001001.jpg", "images/001002.jpg", "images/001003.jpg", "images/001004.jpg", "images/001005.jpg"],
+                story: "走到经过了无数遍的路口，等待红灯的间隙不由得思绪发散，看着早已倒闭的酒店，门口的招牌依旧贴着高薪招聘，联想到那些古代帝国留下的纪念碑，可以想象曾经帝国是何等的繁荣强大，百姓富足安居乐业；怀着征服梦想的一位位伟大帝王在碑上刻下自己的功业，以为会流传千秋万代；整齐划一的军队唱着战歌，向遥远的国度进发，在民众的欢呼声中凯旋。而如今帝国早已随着时间在风沙中消散，徒留纪念碑诉说着往日的辉煌。",
+                echo: "这个酒店在我和朋友们出去玩的必经之路上，来来往往十余年，如今和朋友们早已走散，酒店占着不错的路段，也迟迟无人接手，唏嘘不已"
+            }
+        ];
+
+        const titleText = "CITY ECHO / 城市回声...";
+        let i = 0;
+        function typeWriter() { if (i < titleText.length) { document.getElementById("typewriter").innerHTML += titleText.charAt(i); i++; setTimeout(typeWriter, 100); } }
+        
+        function renderGallery() {
+            const container = document.getElementById("gallery");
+            let html = "";
+            specimens.forEach((item, index) => {
+                html += `<div class="card" onclick="openModal(${index})"><div class="img-box"><img src="${item.imgs[0]}"></div><div class="meta"><span>${item.id}</span><span>${item.date}</span></div><div class="card-title">${item.title}</div><div class="excerpt">${item.story.replace(/<br>/g, ' ')}</div></div>`;
+            });
+            container.innerHTML = html;
+        }
+        window.onload = function() { typeWriter(); renderGallery(); };
+
+        const modal = document.getElementById("detailView");
+        const mainImg = document.getElementById("m-img");
+        const thumbBar = document.getElementById("m-thumbs");
+
+        function openModal(index) {
+            const data = specimens[index];
+            mainImg.src = data.imgs[0];
+            mainImg.style.opacity = 0; setTimeout(() => mainImg.style.opacity = 1, 100);
+
+            thumbBar.innerHTML = "";
+            if (data.imgs.length > 1) {
+                data.imgs.forEach((src, idx) => {
+                    const thumb = document.createElement("img");
+                    thumb.src = src;
+                    thumb.className = idx === 0 ? "thumb active" : "thumb";
+                    thumb.onclick = function() {
+                        mainImg.style.opacity = 0.5;
+                        setTimeout(() => { mainImg.src = src; mainImg.style.opacity = 1; }, 200);
+                        document.querySelectorAll(".thumb").forEach(t => t.classList.remove("active"));
+                        this.classList.add("active");
+                    };
+                    thumbBar.appendChild(thumb);
+                });
+            }
+
+            document.getElementById("m-id").innerText = data.id + " | " + data.location;
+            document.getElementById("m-date").innerText = data.date;
+            document.getElementById("m-title").innerText = data.title;
+            document.getElementById("m-story").innerHTML = data.story;
+            document.getElementById("m-echo").innerText = data.echo;
+            modal.style.display = "block"; document.body.style.overflow = "hidden";
+        }
+        function closeModal() { modal.style.display = "none"; document.body.style.overflow = "auto"; }
+        window.onclick = function(e) { if (e.target == modal) closeModal(); }
+
+        function toggleAdmin() { const panel = document.getElementById("adminPanel"); panel.style.display = panel.style.display === "block" ? "none" : "block"; }
+
+        function generateCode() {
+            const id = document.getElementById("in-id").value;
+            const title = document.getElementById("in-title").value;
+            const date = document.getElementById("in-date").value;
+            const loc = document.getElementById("in-loc").value;
+            const rawImgs = document.getElementById("in-imgs").value || "https://placehold.co/800x500/1a1a1a/FFF?text=No+Image";
+            
+            // 改进了生成逻辑：自动为生成的图片添加 images/ 前缀
+            const imgArray = rawImgs.split(/,|，/).map(s => {
+                const trimmed = s.trim();
+                return trimmed.startsWith('http') ? `"${trimmed}"` : `"images/${trimmed}"`;
+            }).join(", ");
+            
+            let story = document.getElementById("in-story").value.replace(/\n/g, "<br><br>"); 
+            const echo = document.getElementById("in-echo").value;
+            const code = `,\n    {\n        id: "${id}",\n        title: "${title}",\n        date: "${date}",\n        location: "${loc}",\n        imgs: [${imgArray}],\n        story: "${story}",\n        echo: "${echo}"\n    }`;
+            navigator.clipboard.writeText(code).then(() => { const msg = document.getElementById("msg"); msg.style.display = "block"; setTimeout(() => msg.style.display = "none", 3000); });
+        }
+    </script>
+</body>
+</html>
